@@ -1,0 +1,60 @@
+name: Northwind OMS OSGi Build Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+    inputs:
+      build_scenario:
+        description: 'Select Build Scenario'
+        required: true
+        default: 'changed'
+        type: choice
+        options:
+          - changed
+          - all
+
+jobs:
+  build:
+    name: OSGi Smart Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Set up Java / JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Run Build Pipeline
+        run: |
+          chmod +x build_pipeline.py
+
+          # Determine execution scenario and git diff base
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MODE="${{ github.event.inputs.build_scenario }}"
+            BASE="HEAD~1"
+          elif [ "${{ github.event_name }}" = "pull_request" ]; then
+            MODE="changed"
+            BASE="origin/${{ github.base_ref }}"
+          else
+            MODE="changed"
+            BASE="${{ github.event.before }}"
+            if [ "$BASE" = "0000000000000000000000000000000000000000" ] || [ -z "$BASE" ]; then
+              BASE="HEAD~1"
+            fi
+          fi
+
+          python3 build_pipeline.py --mode "$MODE" --base "$BASE" --head "HEAD"
